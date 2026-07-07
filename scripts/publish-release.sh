@@ -26,10 +26,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$PKG_DIR/dist"
 
-VERSION="${1:?usage: publish-release.sh <version> [--prerelease]}"
+VERSION="${1:-}"
 shift || true
 PRERELEASE=0
 [[ "${1:-}" == "--prerelease" ]] && PRERELEASE=1
+
+# If no version given, default to the ANGLE commit position (e.g. v28252).
+# ANGLE doesn't tag releases; its version is the commit count
+# (ANGLE_COMMIT_POSITION = git rev-list HEAD --count). This gives monotonic
+# versioning that tracks ANGLE exactly.
+if [[ -z "$VERSION" ]]; then
+    ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
+    COMMIT_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null)
+    if [[ -n "$COMMIT_POS" ]]; then
+        VERSION="v${COMMIT_POS}"
+        log "No version specified; defaulting to ANGLE commit position: $VERSION"
+    else
+        die "No version specified and couldn't determine ANGLE commit position. \
+Usage: publish-release.sh <version> (e.g. v28252 or v0.1.0)"
+    fi
+fi
 
 log() { printf '\033[1;34m[publish]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31m[publish error]\033[0m %s\n' "$*" >&2; exit 1; }

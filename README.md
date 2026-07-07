@@ -78,23 +78,52 @@ above). The macOS slices are already signed with Hardened Runtime, so
 notarization is the final step that makes `spctl assess` pass and allows
 Gatekeeper to accept the frameworks without warnings.
 
+## Versioning
+
+ANGLE doesn't tag releases or use semantic versioning. Its version is the
+**commit position** (`ANGLE_COMMIT_POSITION` = `git rev-list HEAD --count`),
+which appears in the GL_VERSION string as `ANGLE 2.1.<position>` (e.g.
+`ANGLE 2.1.28252`). The `2.1` is a legacy OpenGL ES conformance prefix that
+never changes; the commit position is the real version number.
+
+This project follows that scheme: releases are tagged `v<commit-position>`
+(e.g. `v28252`). The version auto-derives from the ANGLE source checkout, so:
+
+```sh
+make publish              # auto-versions as v28252 (the current commit position)
+make publish VER=v28252   # explicit (same thing)
+make publish VER=v0.1.0   # override with a custom version if needed
+```
+
+To build from a specific ANGLE version, check out the desired commit or
+`chromium/NNNN` branch in the `angle/` source tree before running `make`:
+
+```sh
+cd ~/Software/Mobile/angle
+git checkout chromium/7930   # a specific Chromium milestone branch
+# or: git checkout <commit-hash>
+cd ~/Software/Mobile/angle-package
+make release                 # publishes as v<that-commit's-position>
+```
+
 ## Publish a release
 
 After building + notarizing, publish a versioned GitHub release:
 
 ```sh
-make publish VER=v0.1.0    # creates a GitHub release with the xcframework zip
+make publish              # auto-versioned (v<ANGLE-commit-position>)
+make publish VER=v0.1.0   # explicit version
 ```
 
 Or do everything in one shot:
 
 ```sh
-make release VER=v0.1.0    # build + sign + notarize + publish
+make release              # build + sign + notarize + publish (auto-versioned)
 ```
 
 This creates a git tag, pushes it, and uploads:
-- `angle-xcframeworks-v0.1.0.zip` — the signed + notarized xcframeworks
-- `angle-xcframeworks-v0.1.0.zip.sha256` — checksum for verification
+- `angle-xcframeworks-v<version>.zip` — the signed + notarized xcframeworks
+- `angle-xcframeworks-v<version>.zip.sha256` — checksum for verification
 
 Team members download the release and add the xcframeworks to their Xcode project.
 

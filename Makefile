@@ -33,11 +33,9 @@ notarize:
 	@bash $(ROOT)scripts/notarize.sh
 
 publish:
-	@if [[ -z "$(VER)" ]]; then echo "Usage: make publish VER=v0.1.0" >&2; exit 2; fi
 	@bash $(ROOT)scripts/publish-release.sh $(VER)
 
 release:
-	@if [[ -z "$(VER)" ]]; then echo "Usage: make release VER=v0.1.0" >&2; exit 2; fi
 	@$(MAKE) all
 	@$(MAKE) notarize
 	@bash $(ROOT)scripts/publish-release.sh $(VER)

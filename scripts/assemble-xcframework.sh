@@ -56,10 +56,15 @@ assemble_one "libEGL" "EGL"
 assemble_one "libGLESv2" "GLESv2"
 
 # Write BUILD_INFO.txt for traceability.
+# ANGLE doesn't tag releases; its version is the commit position
+# (git rev-list HEAD --count = ANGLE_COMMIT_POSITION in the built binary's
+# GL_VERSION string, e.g. "ANGLE 2.1.28252"). We capture it here so the
+# release version can default to it (see publish-release.sh).
 ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
-ANGLE_REV="(cd "$ANGLE_SRC" && git rev-parse --short HEAD 2>/dev/null)" || ANGLE_REV="unknown"
-ANGLE_REV=$(eval "$ANGLE_REV")
-[[ -z "$ANGLE_REV" ]] && ANGLE_REV="unknown"
+ANGLE_REV=$(cd "$ANGLE_SRC" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+ANGLE_COMMIT_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null || echo "unknown")
+ANGLE_BRANCH=$(cd "$ANGLE_SRC" && git branch --show-current 2>/dev/null || echo "unknown")
+ANGLE_COMMIT_DATE=$(cd "$ANGLE_SRC" && git log -1 --format=%ci 2>/dev/null || echo "unknown")
 
 SIGN_INFO=$(security find-identity -p codesigning 2>/dev/null \
     | grep -oE '"Developer ID Application: Au-Zone Technologies Inc[^"]*"' \
@@ -68,12 +73,15 @@ SIGN_INFO=$(security find-identity -p codesigning 2>/dev/null \
 cat > "$DIST_DIR/BUILD_INFO.txt" <<EOF
 ANGLE xcframework build
 =======================
-Built:        $(date -u +%Y-%m-%dT%H:%M:%SZ)
-ANGLE source: $ANGLE_SRC
-ANGLE rev:    $ANGLE_REV
-Build host:   $(hostname -s) ($(uname -m))
-Slices:       ios-arm64, ios-arm64-simulator, macos-arm64
-Signing:      ${SIGN_INFO:-ad-hoc}
+Built:              $(date -u +%Y-%m-%dT%H:%M:%SZ)
+ANGLE source:       $ANGLE_SRC
+ANGLE commit:       $ANGLE_REV (position $ANGLE_COMMIT_POS)
+ANGLE commit date:  $ANGLE_COMMIT_DATE
+ANGLE branch:       $ANGLE_BRANCH
+GL_VERSION string:  OpenGL ES 3.0 (ANGLE 2.1.$ANGLE_COMMIT_POS ...)
+Build host:         $(hostname -s) ($(uname -m))
+Slices:             ios-arm64, ios-arm64-simulator, macos-arm64
+Signing:            ${SIGN_INFO:-ad-hoc}
 EOF
 
 log "Wrote $DIST_DIR/BUILD_INFO.txt"
