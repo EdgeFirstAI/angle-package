@@ -82,7 +82,7 @@ log "Creating git tag $VERSION..."
 if git rev-parse "$VERSION" >/dev/null 2>&1; then
     log "  tag $VERSION already exists — skipping creation."
 else
-    git tag "$VERSION"
+    git tag -m "Release $VERSION" "$VERSION"
 fi
 
 log "Pushing to GitHub..."
