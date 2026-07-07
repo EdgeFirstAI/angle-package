@@ -5,8 +5,9 @@
 #   make ios           # build ios-device + ios-sim slices only
 #   make macos         # build macos-arm64 slice only
 #   make notarize      # notarize dist/ via Apple's notarytool (requires keychain profile)
-#   make publish VER=v0.1.0  # publish a GitHub release with the xcframeworks
-#   make release VER=v0.1.0  # all: build + notarize + publish
+#   make publish       # publish a GitHub release (auto-versioned v2.1.<commit-position>)
+#   make publish VER=v2.1.28252-1  # publish with explicit version
+#   make release       # all: build + notarize + publish
 #   make verify        # re-verify dist/ without rebuilding
 #   make clean         # remove build/ and dist/
 #

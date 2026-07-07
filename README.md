@@ -80,19 +80,23 @@ Gatekeeper to accept the frameworks without warnings.
 
 ## Versioning
 
-ANGLE doesn't tag releases or use semantic versioning. Its version is the
-**commit position** (`ANGLE_COMMIT_POSITION` = `git rev-list HEAD --count`),
-which appears in the GL_VERSION string as `ANGLE 2.1.<position>` (e.g.
-`ANGLE 2.1.28252`). The `2.1` is a legacy OpenGL ES conformance prefix that
-never changes; the commit position is the real version number.
+This project follows ANGLE's own versioning scheme: **`v2.1.<commit-position>`**
+(e.g. `v2.1.28252`). The commit position is `ANGLE_COMMIT_POSITION` =
+`git rev-list HEAD --count`, which appears in the built binary's GL_VERSION
+string as `OpenGL ES 3.0 (ANGLE 2.1.28252 ...)`. The `2.1` is a legacy OpenGL
+ES conformance prefix that never changes; the commit position is the real
+version number and increments monotonically with every ANGLE commit.
 
-This project follows that scheme: releases are tagged `v<commit-position>`
-(e.g. `v28252`). The version auto-derives from the ANGLE source checkout, so:
+For packaging revisions within the same ANGLE commit (e.g. a signing fix or
+build-config change without an ANGLE source update), append `-N`:
+`v2.1.28252-1`, `v2.1.28252-2`, etc.
+
+The version auto-derives from the ANGLE source checkout:
 
 ```sh
-make publish              # auto-versions as v28252 (the current commit position)
-make publish VER=v28252   # explicit (same thing)
-make publish VER=v0.1.0   # override with a custom version if needed
+make publish                  # auto: v2.1.28252
+make publish VER=v2.1.28252   # explicit (same thing)
+make publish VER=v2.1.28252-1 # packaging revision on the same ANGLE commit
 ```
 
 To build from a specific ANGLE version, check out the desired commit or
@@ -103,7 +107,7 @@ cd ~/Software/Mobile/angle
 git checkout chromium/7930   # a specific Chromium milestone branch
 # or: git checkout <commit-hash>
 cd ~/Software/Mobile/angle-package
-make release                 # publishes as v<that-commit's-position>
+make release                 # publishes as v2.1.<that-commit's-position>
 ```
 
 ## Publish a release
@@ -111,14 +115,14 @@ make release                 # publishes as v<that-commit's-position>
 After building + notarizing, publish a versioned GitHub release:
 
 ```sh
-make publish              # auto-versioned (v<ANGLE-commit-position>)
-make publish VER=v0.1.0   # explicit version
+make publish                    # auto-versioned (v2.1.<ANGLE-commit-position>)
+make publish VER=v2.1.28252-1   # packaging revision
 ```
 
 Or do everything in one shot:
 
 ```sh
-make release              # build + sign + notarize + publish (auto-versioned)
+make release                    # build + sign + notarize + publish (auto-versioned)
 ```
 
 This creates a git tag, pushes it, and uploads:

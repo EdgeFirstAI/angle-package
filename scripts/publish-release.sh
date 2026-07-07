@@ -5,50 +5,52 @@
 # as downloadable assets. Team members consume the release via the download
 # URLs (or a SwiftPM binary target pointing at the zip).
 #
+# Versioning follows ANGLE's own scheme: v2.1.<commit-position> (e.g.
+# v2.1.28252). The commit position is ANGLE_COMMIT_POSITION = git rev-list
+# HEAD --count, which appears in the GL_VERSION string as "ANGLE 2.1.28252".
+# Add -N suffix for packaging revisions within the same ANGLE commit
+# (e.g. v2.1.28252-1 for a signing/notarization fix on the same ANGLE build).
+#
 # Prerequisites:
 #   - dist/ exists and is signed + notarized (run `make all && make notarize`).
 #   - gh CLI is authenticated (gh auth login).
-#   - The git repo has a GitHub remote (the script creates one if missing).
 #
 # Usage:
-#   bash scripts/publish-release.sh <version>     # e.g. v0.1.0
-#   bash scripts/publish-release.sh v0.1.0 --prerelease
-#
-# What this does:
-#   1. Creates a versioned zip of dist/ (angle-xcframeworks-<version>.zip).
-#   2. Computes a SHA256 checksum.
-#   3. Ensures the GitHub repo exists (creates it if missing).
-#   4. Creates a git tag <version> and pushes it.
-#   5. Creates a GitHub release with the zip + checksum as assets.
+#   bash scripts/publish-release.sh                  # auto: v2.1.<position>
+#   bash scripts/publish-release.sh v2.1.28252       # explicit
+#   bash scripts/publish-release.sh v2.1.28252-1     # packaging revision
+#   bash scripts/publish-release.sh v2.1.28252 --prerelease
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$PKG_DIR/dist"
 
+# Define log/die BEFORE any code that calls them (previous version had them
+# after the version-detection block, which shadowed the system `log` command).
+log() { printf '\033[1;34m[publish]\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[1;31m[publish error]\033[0m %s\n' "$*" >&2; exit 1; }
+
 VERSION="${1:-}"
 shift || true
 PRERELEASE=0
 [[ "${1:-}" == "--prerelease" ]] && PRERELEASE=1
 
-# If no version given, default to the ANGLE commit position (e.g. v28252).
-# ANGLE doesn't tag releases; its version is the commit count
-# (ANGLE_COMMIT_POSITION = git rev-list HEAD --count). This gives monotonic
-# versioning that tracks ANGLE exactly.
+# If no version given, derive from ANGLE's commit position: v2.1.<position>.
+# ANGLE doesn't tag releases; its version is ANGLE_COMMIT_POSITION
+# (git rev-list HEAD --count), rendered in GL_VERSION as "ANGLE 2.1.<pos>".
+# The "2.1" is a legacy OpenGL ES conformance prefix that never changes.
 if [[ -z "$VERSION" ]]; then
     ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
     COMMIT_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null)
     if [[ -n "$COMMIT_POS" ]]; then
-        VERSION="v${COMMIT_POS}"
-        log "No version specified; defaulting to ANGLE commit position: $VERSION"
+        VERSION="v2.1.${COMMIT_POS}"
+        log "No version specified; derived from ANGLE commit position: $VERSION"
     else
         die "No version specified and couldn't determine ANGLE commit position. \
-Usage: publish-release.sh <version> (e.g. v28252 or v0.1.0)"
+Usage: publish-release.sh <version> (e.g. v2.1.28252)"
     fi
 fi
-
-log() { printf '\033[1;34m[publish]\033[0m %s\n' "$*" >&2; }
-die() { printf '\033[1;31m[publish error]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ -d "$DIST_DIR/EGL.xcframework" ]] || die "dist/ not found — run 'make all' first."
 command -v gh >/dev/null 2>&1 || die "gh CLI not installed (brew install gh)."
