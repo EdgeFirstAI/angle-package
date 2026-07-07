@@ -1,0 +1,28 @@
+# GN args for the ios-device slice (aarch64-apple-ios).
+#
+# Read by scripts/build-slice.sh. One arg per line, as `key = value`.
+# Comments (#) and blank lines are stripped.
+
+# iOS device targeting.
+target_os = "ios"
+target_cpu = "arm64"
+target_environment = "device"
+
+# No build-time signing — we sign post-build in scripts/sign-framework.sh
+# with the Au-Zone Developer ID identity.
+ios_enable_code_signing = false
+ios_deployment_target = "16.0"
+
+# Bundle ID prefix: replaces the upstream `org.chromium.ost` with our own
+# so the frameworks carry com.edgefirst.anglesdk.libEGL etc.
+ios_app_bundle_id_prefix = "com.edgefirst.anglesdk"
+
+# Build configuration.
+is_debug = false
+is_component_build = false
+angle_enable_metal = true
+angle_enable_vulkan = false
+angle_enable_gl_desktop_backend = false
+angle_enable_gl = false
+angle_has_frame_capture = false
+treat_warnings_as_errors = false

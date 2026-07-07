@@ -1,0 +1,27 @@
+# GN args for the ios-sim slice (aarch64-apple-ios-sim).
+#
+# Read by scripts/build-slice.sh. One arg per line, as `key = value`.
+# Comments (#) and blank lines are stripped.
+
+# iOS simulator targeting (Apple Silicon by default; set IOS_SIM_CPU=x64
+# at runtime for Intel).
+target_os = "ios"
+target_cpu = "arm64"
+target_environment = "simulator"
+
+# No build-time signing — we sign post-build in scripts/sign-framework.sh.
+ios_enable_code_signing = false
+ios_deployment_target = "16.0"
+
+# Bundle ID prefix: replaces the upstream `org.chromium.ost` with our own.
+ios_app_bundle_id_prefix = "com.edgefirst.anglesdk"
+
+# Build configuration.
+is_debug = false
+is_component_build = false
+angle_enable_metal = true
+angle_enable_vulkan = false
+angle_enable_gl_desktop_backend = false
+angle_enable_gl = false
+angle_has_frame_capture = false
+treat_warnings_as_errors = false

@@ -1,0 +1,10 @@
+# Intermediate build artifacts per-slice.
+/build/
+
+# Final distribution output (regenerated per build; don't commit binaries).
+/dist/
+
+# macOS / Xcode noise.
+.DS_Store
+*.xcuserstate
+xcuserdata/

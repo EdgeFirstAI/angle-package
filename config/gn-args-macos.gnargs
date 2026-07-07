@@ -1,0 +1,22 @@
+# GN args for the macos slice (aarch64-apple-darwin).
+#
+# Read by scripts/build-slice.sh. One arg per line, as `key = value`.
+# Comments (#) and blank lines are stripped.
+#
+# NOTE: ANGLE on macOS produces bare .dylib files (the angle_shared_library
+# GN template only switches to ios_framework_bundle when is_ios). The
+# scripts/build-slice.sh macos path calls scripts/wrap-macos-framework.sh
+# to wrap the dylibs into .framework bundles after the build.
+
+# Native macOS host build (target_os unset → defaults to host).
+# No target_os override needed for macos.
+
+# Build configuration.
+is_debug = false
+is_component_build = false
+angle_enable_metal = true
+angle_enable_vulkan = false
+angle_enable_gl_desktop_backend = false
+angle_enable_gl = false
+angle_has_frame_capture = false
+treat_warnings_as_errors = false
