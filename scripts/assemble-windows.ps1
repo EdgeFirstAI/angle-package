@@ -79,7 +79,16 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 if (Test-Path $vswhere) {
     try {
         $sel = @('-latest', '-products', '*', '-property', 'catalog_productDisplayVersion')
-        if ($env:GYP_MSVS_VERSION) { $sel = @('-version', "[$(if ($env:GYP_MSVS_VERSION -eq '2022') { '17.0,18.0' } elseif ($env:GYP_MSVS_VERSION -eq '2026') { '18.0,19.0' } else { '16.0,' })", '-products', '*', '-property', 'catalog_productDisplayVersion') }
+        if ($env:GYP_MSVS_VERSION) {
+            # vswhere ranges are half-open "[min,max)"; the closing paren is
+            # part of the syntax, an unterminated range makes vswhere error.
+            $range = switch ($env:GYP_MSVS_VERSION) {
+                '2022'  { '[17.0,18.0)' }
+                '2026'  { '[18.0,19.0)' }
+                default { '[16.0,)' }
+            }
+            $sel = @('-version', $range, '-products', '*', '-property', 'catalog_productDisplayVersion')
+        }
         $vs = (& $vswhere @sel 2>$null | Select-Object -First 1)
         if (-not $vs) { $vs = 'unknown' }
     } catch {}

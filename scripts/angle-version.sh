@@ -6,7 +6,8 @@
 # v2.1.<ANGLE_COMMIT_POSITION> names one source revision.
 #
 # Usage:
-#   bash scripts/angle-version.sh [print]   # KEY=VALUE lines (eval-able)
+#   bash scripts/angle-version.sh [print]   # KEY=VALUE lines, values validated
+#                                           # and shell-quoted (safe to eval)
 #   bash scripts/angle-version.sh version   # v2.1.<ANGLE_COMMIT_POSITION>
 #   bash scripts/angle-version.sh check     # assert $ANGLE_SRC is at the pinned
 #                                           # commit AND rev-list --count matches
@@ -24,9 +25,35 @@ ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
 
 die() { printf '\033[1;31m[angle-version error]\033[0m %s\n' "$*" >&2; exit 1; }
 
-read_lock() {
+# Bind the lock's ANGLE_* keys as shell variables in this process. No `eval`:
+# each line is matched structurally, the value is restricted to the charset
+# a sha / integer / ISO date / branch name needs, and the assignment goes
+# through `printf -v`, so a hostile edit to config/angle.lock cannot run
+# commands here or in the callers that eval `print`'s (%q-quoted) output.
+LOCK_KEYS=()
+load_lock() {
     [[ -f "$LOCK" ]] || die "missing $LOCK (run 'make pin' on a machine with an ANGLE checkout)"
-    grep -E '^[A-Z_]+=' "$LOCK"
+    local line key value
+    LOCK_KEYS=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^(ANGLE_[A-Z_]+)=(.*)$ ]] || continue
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+        [[ "$value" =~ ^[A-Za-z0-9._:+/-]*$ ]] || \
+            die "refusing $key in $LOCK: value must only use [A-Za-z0-9._:+/-] (got: $value)"
+        printf -v "$key" '%s' "$value"
+        LOCK_KEYS+=("$key")
+    done < "$LOCK"
+    [[ -n "${ANGLE_COMMIT:-}" && -n "${ANGLE_COMMIT_POSITION:-}" ]] || \
+        die "$LOCK lacks ANGLE_COMMIT / ANGLE_COMMIT_POSITION (run 'make pin')"
+}
+
+# KEY=VALUE lines with shell-quoted values; safe for callers to `eval`.
+print_lock() {
+    local key
+    for key in "${LOCK_KEYS[@]}"; do
+        printf '%s=%q\n' "$key" "${!key}"
+    done
 }
 
 derive() {
@@ -43,14 +70,15 @@ derive() {
 
 case "${1:-print}" in
     print)
-        read_lock
+        load_lock
+        print_lock
         ;;
     version)
-        eval "$(read_lock)"
+        load_lock
         echo "v2.1.${ANGLE_COMMIT_POSITION}"
         ;;
     check)
-        eval "$(read_lock)"
+        load_lock
         [[ -d "$ANGLE_SRC/.git" ]] || die "no ANGLE checkout at $ANGLE_SRC (set ANGLE_SRC)"
         head_sha="$(git -C "$ANGLE_SRC" rev-parse HEAD)"
         [[ "$head_sha" == "$ANGLE_COMMIT" ]] || \
