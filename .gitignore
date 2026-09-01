@@ -3,6 +3,10 @@
 
 # Final distribution output (regenerated per build; don't commit binaries).
 /dist/
+/dist-windows-x64/
+
+# Never commit a code-signing certificate.
+*.pfx
 
 # macOS / Xcode noise.
 .DS_Store

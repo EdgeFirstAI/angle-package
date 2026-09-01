@@ -1,0 +1,225 @@
+# Windows x64 (Direct3D 11) ANGLE build — publishes angle-windows-x64-<tag>.zip
+# (+ .sha256, + -symbols.zip) onto the SAME release tag the Mac publishes the
+# xcframeworks to. Builds the ANGLE commit pinned in config/angle.lock.
+#
+# Triggers:
+#   - push of a v2.1.* tag (scripts/publish-release.sh on the Mac does this)
+#   - workflow_dispatch: tag/prerelease/publish inputs; publish=false is an
+#     artifact-only dry run.
+#
+# Toolchain: the pinned windows-2025 image ships Visual Studio 2022 and the
+# Windows 11 SDK. Chromium's build/vs_toolchain.py only needs the CRT headers/
+# libs and the SDK from it (DEPOT_TOOLS_WIN_TOOLCHAIN=0); clang-cl and lld-link
+# come from ANGLE's third_party/llvm-build via gclient sync.
+#
+# Actions are hash-pinned (Au-Zone SPS); versions match EdgeFirstAI/hal.
+name: Windows x64 (Direct3D 11)
+
+on:
+  push:
+    tags: ['v2.1.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag v2.1.<pos>[-N]. Empty = v2.1.<pos> from config/angle.lock'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: 'Mark the release as a pre-release if this run creates it'
+        required: false
+        type: boolean
+        default: false
+      publish:
+        description: 'Upload to the GitHub release (false = artifact-only dry run)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write        # gh release create / upload
+  id-token: write        # build provenance
+  attestations: write
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DEPOT_TOOLS_WIN_TOOLCHAIN: '0'   # use the runner's Visual Studio + SDK, not Google's internal toolchain
+  ANGLE_SRC: 'C:\angle'            # C: has the space; the D:\a workspace is ~14 GB
+  DEPOT_TOOLS: 'C:\depot_tools'
+  # Computed here so a step `if:` can read it (`secrets` is not usable in step conditions).
+  HAS_PFX: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 != '' && secrets.WINDOWS_CODESIGN_PFX_PASSWORD != '' }}
+
+jobs:
+  build:
+    name: Build, verify, publish (windows-x64)
+    # Pinned image, not windows-latest: the toolchain recorded in BUILD_INFO.txt
+    # must not change under us. windows-2025 = VS 2022 + Windows SDK 10.0.26100.
+    runs-on: windows-2025
+    # sync ~10-20 min + build ~45-90 min on 4 vCPUs; the hard job limit is 360.
+    timeout-minutes: 330
+
+    steps:
+      - name: Checkout angle-package
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Resolve tag against config/angle.lock
+        id: ver
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          eval "$(bash scripts/angle-version.sh print)"
+          if [[ "$GITHUB_REF" == refs/tags/v2.1.* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          elif [[ -n "$INPUT_TAG" ]]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="v2.1.${ANGLE_COMMIT_POSITION}"
+          fi
+          if [[ ! "$TAG" =~ ^v2\.1\.${ANGLE_COMMIT_POSITION}(-[0-9]+)?$ ]]; then
+            echo "::error::tag $TAG does not match config/angle.lock position $ANGLE_COMMIT_POSITION"
+            exit 1
+          fi
+          PUBLISH=false
+          if [[ "$GITHUB_REF" == refs/tags/* || "$INPUT_PUBLISH" == "true" ]]; then PUBLISH=true; fi
+          {
+            echo "tag=$TAG"
+            echo "sha=$ANGLE_COMMIT"
+            echo "pos=$ANGLE_COMMIT_POSITION"
+            echo "publish=$PUBLISH"
+          } >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG sha=$ANGLE_COMMIT pos=$ANGLE_COMMIT_POSITION publish=$PUBLISH"
+
+      - name: Host inventory (disk, Visual Studio, SDK debuggers)
+        shell: pwsh
+        run: |
+          Get-PSDrive C, D | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property displayName,catalog_productDisplayVersion
+          Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include" | Select-Object -ExpandProperty Name
+          # Chromium's vs_toolchain.py copies dbghelp.dll from the SDK Debugging Tools during `gn gen`.
+          $dbg = "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\dbghelp.dll"
+          if (Test-Path $dbg) { "Debugging Tools present: $dbg" } else {
+            Write-Warning "dbghelp.dll missing - installing the Windows SDK Debugging Tools"
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2286561' -OutFile "$env:RUNNER_TEMP\winsdksetup.exe"
+            Start-Process "$env:RUNNER_TEMP\winsdksetup.exe" -ArgumentList '/features OptionId.WindowsDesktopDebuggers /quiet /norestart' -Wait
+            if (-not (Test-Path $dbg)) { throw "still no $dbg after installing the SDK Debugging Tools" }
+          }
+
+      - name: Install depot_tools (bootstraps its bundled git + python via CIPD)
+        shell: pwsh
+        run: |
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git $env:DEPOT_TOOLS
+          # win_tools.bat writes git.bat, which gclient's git_cache hard-codes on Windows.
+          & cmd.exe /c "$env:DEPOT_TOOLS\bootstrap\win_tools.bat"
+          if (-not (Test-Path "$env:DEPOT_TOOLS\git.bat")) { throw "depot_tools bootstrap did not produce git.bat" }
+          & "$env:DEPOT_TOOLS\gclient.bat" --version
+
+      - name: Clone ANGLE at the pinned commit (full history)
+        # A shallow clone would bake a wrong ANGLE_COMMIT_POSITION (git rev-list
+        # --count) into GL_VERSION; verify-windows.ps1 asserts it later too.
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          git clone https://chromium.googlesource.com/angle/angle.git $env:ANGLE_SRC
+          git -C $env:ANGLE_SRC checkout --detach ${{ steps.ver.outputs.sha }}
+          $pos = (git -C $env:ANGLE_SRC rev-list HEAD --count).Trim()
+          if ($pos -ne '${{ steps.ver.outputs.pos }}') { throw "rev-list count $pos != lock position ${{ steps.ver.outputs.pos }}" }
+
+      - name: gclient sync (OpenCL + Dawn deps skipped; retries CIPD/GCS flakes)
+        shell: pwsh
+        run: |
+          @'
+          solutions = [
+            {
+              "name": ".",
+              "url": "https://chromium.googlesource.com/angle/angle.git",
+              "deps_file": "DEPS",
+              "managed": False,
+              "custom_deps": {},
+              "custom_vars": {
+                "checkout_angle_cl_deps": False,
+                "checkout_angle_dawn_deps": False,
+              },
+            },
+          ]
+          '@ | Set-Content "$env:ANGLE_SRC\.gclient" -Encoding ascii
+          # depot_tools on PATH for this step only (its python3.bat must not shadow the runner's Python).
+          $env:PATH = "$env:DEPOT_TOOLS;$env:PATH"
+          $env:DEPOT_TOOLS_UPDATE = '0'
+          Push-Location $env:ANGLE_SRC
+          $ok = $false
+          foreach ($i in 1..3) {
+            & gclient.bat sync -D --no-history -j8
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Warning "gclient sync attempt $i failed (exit $LASTEXITCODE); retrying in 30 s"
+            Start-Sleep 30
+          }
+          Pop-Location
+          if (-not $ok) { throw "gclient sync failed after 3 attempts" }
+          Select-String -Path "$env:ANGLE_SRC\build\vs_toolchain.py" -Pattern "^\s*\('20\d\d'" | ForEach-Object { $_.Line.Trim() }
+          Get-PSDrive C | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}
+
+      - name: Build libEGL + libGLESv2 (gn gen + ninja)
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/build-windows.ps1
+
+      - name: Assemble dist-windows-x64/
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/assemble-windows.ps1 -Tag ${{ steps.ver.outputs.tag }}
+
+      - name: Authenticode sign (only when a PFX secret is configured)
+        if: env.HAS_PFX == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CODESIGN_PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
+          WINDOWS_CODESIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
+        run: pwsh -NoProfile -File scripts/sign-windows.ps1
+
+      - name: MSVC developer environment (cl + dumpbin for verify)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1.13.0
+
+      - name: Verify (layout, imports, signature, WARP runtime probe)
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/verify-windows.ps1 -Warp -ExpectPosition ${{ steps.ver.outputs.pos }}
+
+      - name: Package zips + sha256
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/package-windows.ps1 -Tag ${{ steps.ver.outputs.tag }}
+
+      - name: Upload workflow artifact (always; this is the dry-run output)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: angle-windows-x64-${{ steps.ver.outputs.tag }}
+          path: |
+            build/angle-windows-x64-*.zip
+            build/angle-windows-x64-*.zip.sha256
+            dist-windows-x64/BUILD_INFO.txt
+          if-no-files-found: error
+
+      - name: Attest build provenance
+        if: steps.ver.outputs.publish == 'true'
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f  # v3.2.0
+        with:
+          subject-path: build/angle-windows-x64-*.zip
+
+      - name: Publish to the GitHub release (create if absent, upload --clobber)
+        if: steps.ver.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          EXTRA=()
+          if [[ "${PRERELEASE:-false}" == "true" ]]; then EXTRA+=(--prerelease); fi
+          bash scripts/gh-release-upload.sh "${{ steps.ver.outputs.tag }}" \
+            --title "ANGLE ${{ steps.ver.outputs.tag }}" \
+            --notes-file dist-windows-x64/BUILD_INFO.txt \
+            --target "$GITHUB_SHA" "${EXTRA[@]}" -- \
+            build/angle-windows-x64-*.zip build/angle-windows-x64-*.zip.sha256

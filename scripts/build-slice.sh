@@ -50,6 +50,14 @@ die() { printf '\033[1;31m[build-slice:%s error]\033[0m %s\n' "$SLICE" "$*" >&2;
 [[ -n "$(ls -A "$ANGLE_SRC/third_party/abseil-cpp" 2>/dev/null)" ]] || \
     die "ANGLE tree at $ANGLE_SRC is not synced (third_party/abseil-cpp is empty). Run 'gclient sync' in $ANGLE_SRC first."
 
+# The checkout must be at the pinned ANGLE commit (config/angle.lock) so this
+# slice and the Windows workflow's slice describe the same source revision.
+# ANGLE_PIN_CHECK=0 skips the check for local experiments.
+if [[ "${ANGLE_PIN_CHECK:-1}" != "0" ]]; then
+    ANGLE_SRC="$ANGLE_SRC" bash "$SCRIPT_DIR/angle-version.sh" check || \
+        die "ANGLE pin check failed (set ANGLE_PIN_CHECK=0 to bypass)"
+fi
+
 # Build the gn args string from the config file (strip comments + blank lines).
 GN_ARGS=$(grep -v '^\s*#' "$CONFIG" | grep -v '^\s*$' | tr '\n' ' ' | sed 's/ $//')
 

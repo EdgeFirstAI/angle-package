@@ -1,0 +1,13 @@
+# Pinned ANGLE revision — the single source of truth for what every slice
+# builds. The Mac (`make all`) and the Windows workflow
+# (.github/workflows/windows.yml) both build exactly this commit, so the
+# release tag v2.1.<ANGLE_COMMIT_POSITION> names the same source everywhere.
+#
+# Update with `make pin` after checking out the desired commit in ../angle
+# (a full-history checkout: ANGLE_COMMIT_POSITION is `git rev-list HEAD
+# --count`, which is what the built binary reports in GL_VERSION).
+# Read/validate with scripts/angle-version.sh.
+ANGLE_COMMIT=c053bf85793bbb83016b1196d04e5df3594b9bcc
+ANGLE_COMMIT_POSITION=28252
+ANGLE_COMMIT_DATE=2026-07-03T16:43:11-07:00
+ANGLE_BRANCH=main

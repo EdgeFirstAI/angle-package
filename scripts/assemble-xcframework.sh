@@ -61,10 +61,17 @@ assemble_one "libGLESv2" "GLESv2"
 # GL_VERSION string, e.g. "ANGLE 2.1.28252"). We capture it here so the
 # release version can default to it (see publish-release.sh).
 ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
-ANGLE_REV=$(cd "$ANGLE_SRC" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-ANGLE_COMMIT_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null || echo "unknown")
-ANGLE_BRANCH=$(cd "$ANGLE_SRC" && git branch --show-current 2>/dev/null || echo "unknown")
-ANGLE_COMMIT_DATE=$(cd "$ANGLE_SRC" && git log -1 --format=%ci 2>/dev/null || echo "unknown")
+# The pin (config/angle.lock) is the source of truth for commit/position so
+# this BUILD_INFO and the Windows slice's carry identical values; the live
+# checkout is only consulted for the branch name and to cross-check.
+eval "$(bash "$SCRIPT_DIR/angle-version.sh" print)"
+ANGLE_REV="${ANGLE_COMMIT:0:10}"
+ANGLE_COMMIT_POS="$ANGLE_COMMIT_POSITION"
+ANGLE_BRANCH=$(cd "$ANGLE_SRC" && git branch --show-current 2>/dev/null || true)
+ANGLE_BRANCH="${ANGLE_BRANCH:-detached} (pinned via config/angle.lock)"
+LIVE_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null || echo "unknown")
+[[ "$LIVE_POS" == "$ANGLE_COMMIT_POS" ]] || \
+    die "ANGLE checkout position $LIVE_POS != pinned $ANGLE_COMMIT_POS — run 'make pin' or check out the pinned commit"
 
 SIGN_INFO=$(security find-identity -p codesigning 2>/dev/null \
     | grep -oE '"Developer ID Application: Au-Zone Technologies Inc[^"]*"' \
@@ -82,6 +89,7 @@ GL_VERSION string:  OpenGL ES 3.0 (ANGLE 2.1.$ANGLE_COMMIT_POS ...)
 Build host:         $(hostname -s) ($(uname -m))
 Slices:             ios-arm64, ios-arm64-simulator, macos-arm64
 Signing:            ${SIGN_INFO:-ad-hoc}
+Package tag:        v2.1.$ANGLE_COMMIT_POS
 EOF
 
 log "Wrote $DIST_DIR/BUILD_INFO.txt"

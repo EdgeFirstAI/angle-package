@@ -9,15 +9,26 @@
 #   make publish VER=v2.1.28252-1  # publish with explicit version
 #   make release       # all: build + notarize + publish
 #   make verify        # re-verify dist/ without rebuilding
-#   make clean         # remove build/ and dist/
+#   make clean         # remove build/, dist/ and dist-windows-x64/
 #
-# Prerequisites: depot_tools on PATH, ANGLE synced, Developer ID cert in keychain.
+# Windows x64 (Direct3D 11) — run on a Windows box (pwsh 7) or let CI do it:
+#   make pin           # (any machine with ../angle) write config/angle.lock from the checkout
+#   make windows       # build + assemble + verify dist-windows-x64/ (needs depot_tools + ANGLE synced)
+#   make verify-windows
+#   make publish-windows  # zip + upload to the release tag (CI is the publisher of record)
+#
+# Prerequisites: depot_tools on PATH, ANGLE synced at the pinned commit
+# (config/angle.lock), Developer ID cert in keychain.
 # For notarize: keychain profile "angle-package" (xcrun notarytool store-credentials).
 # For publish: gh CLI authenticated.
 
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+PWSH ?= pwsh -NoProfile -ExecutionPolicy Bypass
+# Release tag: VER on the command line, else v2.1.<position> from config/angle.lock.
+TAG = $(or $(VER),$(shell bash $(ROOT)scripts/angle-version.sh version))
 
-.PHONY: all ios macos notarize publish release verify clean
+.PHONY: all ios macos notarize publish release verify clean \
+        pin windows verify-windows publish-windows
 
 all: ios macos
 	@bash $(ROOT)scripts/assemble-xcframework.sh
@@ -44,5 +55,25 @@ release:
 verify:
 	@bash $(ROOT)scripts/verify.sh
 
+pin:
+	@bash $(ROOT)scripts/angle-version.sh write
+
+windows:
+	@$(PWSH) -File $(ROOT)scripts/build-windows.ps1
+	@$(PWSH) -File $(ROOT)scripts/assemble-windows.ps1 -Tag $(TAG)
+	@$(PWSH) -File $(ROOT)scripts/verify-windows.ps1
+
+verify-windows:
+	@$(PWSH) -File $(ROOT)scripts/verify-windows.ps1
+
+publish-windows:
+	@$(PWSH) -File $(ROOT)scripts/package-windows.ps1 -Tag $(TAG)
+	@bash $(ROOT)scripts/gh-release-upload.sh $(TAG) --title "ANGLE $(TAG)" \
+	    --notes-file $(ROOT)dist-windows-x64/BUILD_INFO.txt -- \
+	    $(ROOT)build/angle-windows-x64-$(TAG).zip \
+	    $(ROOT)build/angle-windows-x64-$(TAG).zip.sha256 \
+	    $(ROOT)build/angle-windows-x64-$(TAG)-symbols.zip \
+	    $(ROOT)build/angle-windows-x64-$(TAG)-symbols.zip.sha256
+
 clean:
-	rm -rf $(ROOT)build $(ROOT)dist
+	rm -rf $(ROOT)build $(ROOT)dist $(ROOT)dist-windows-x64
