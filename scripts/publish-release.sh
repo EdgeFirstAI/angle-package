@@ -40,17 +40,15 @@ PRERELEASE=0
 # ANGLE doesn't tag releases; its version is ANGLE_COMMIT_POSITION
 # (git rev-list HEAD --count), rendered in GL_VERSION as "ANGLE 2.1.<pos>".
 # The "2.1" is a legacy OpenGL ES conformance prefix that never changes.
+# The position comes from config/angle.lock (the cross-machine pin), not from
+# whatever ../angle happens to have checked out — see scripts/angle-version.sh.
+eval "$(bash "$SCRIPT_DIR/angle-version.sh" print)"
 if [[ -z "$VERSION" ]]; then
-    ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
-    COMMIT_POS=$(cd "$ANGLE_SRC" && git rev-list HEAD --count 2>/dev/null)
-    if [[ -n "$COMMIT_POS" ]]; then
-        VERSION="v2.1.${COMMIT_POS}"
-        log "No version specified; derived from ANGLE commit position: $VERSION"
-    else
-        die "No version specified and couldn't determine ANGLE commit position. \
-Usage: publish-release.sh <version> (e.g. v2.1.28252)"
-    fi
+    VERSION="v2.1.${ANGLE_COMMIT_POSITION}"
+    log "No version specified; derived from the pinned ANGLE commit position: $VERSION"
 fi
+[[ "$VERSION" =~ ^v2\.1\.${ANGLE_COMMIT_POSITION}(-[0-9]+)?$ ]] || \
+    die "version $VERSION does not match the pinned position ${ANGLE_COMMIT_POSITION} (config/angle.lock). Run 'make pin' after moving ../angle, or pass v2.1.${ANGLE_COMMIT_POSITION}[-N]."
 
 [[ -d "$DIST_DIR/EGL.xcframework" ]] || die "dist/ not found — run 'make all' first."
 command -v gh >/dev/null 2>&1 || die "gh CLI not installed (brew install gh)."
@@ -108,18 +106,15 @@ git push --quiet origin HEAD "$VERSION" 2>/dev/null || \
     git push --quiet origin "$VERSION" 2>/dev/null || \
     log "  push failed (may need 'git push -u origin main' first)"
 
-# ── 5. Create the GitHub release ──────────────────────────────────────────
-log "Creating GitHub release $VERSION..."
-RELEASE_TITLE="ANGLE xcframeworks $VERSION"
-RELEASE_NOTES=$(cat "$DIST_DIR/BUILD_INFO.txt" 2>/dev/null || echo "Signed + notarized ANGLE xcframeworks.")
-
-GH_ARGS=(--title "$RELEASE_TITLE" --notes "$RELEASE_NOTES")
-[[ "$PRERELEASE" -eq 1 ]] && GH_ARGS+=(--prerelease)
-
-gh release create "$VERSION" \
-    "${GH_ARGS[@]}" \
-    "$RELEASE_ZIP" "$CHECKSUM_FILE" \
-    --repo "$REPO_SLUG"
+# ── 5. Create or extend the GitHub release ────────────────────────────────
+# The Windows workflow (.github/workflows/windows.yml, triggered by the tag
+# push above) adds angle-windows-x64-<version>.zip to this same release;
+# gh-release-upload.sh lets whichever side runs first create it.
+log "Publishing to GitHub release $VERSION..."
+UPLOAD_ARGS=(--title "ANGLE $VERSION" --notes-file "$DIST_DIR/BUILD_INFO.txt")
+[[ "$PRERELEASE" -eq 1 ]] && UPLOAD_ARGS+=(--prerelease)
+GH_REPO="$REPO_SLUG" bash "$SCRIPT_DIR/gh-release-upload.sh" "$VERSION" \
+    "${UPLOAD_ARGS[@]}" -- "$RELEASE_ZIP" "$CHECKSUM_FILE"
 
 log ""
 log "✅ Published: $VERSION"

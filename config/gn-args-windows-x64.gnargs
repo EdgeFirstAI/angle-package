@@ -1,0 +1,44 @@
+# GN args for the windows-x64 slice: Direct3D 11 backend, x86_64 (MSVC ABI),
+# built with ANGLE's bundled clang-cl + lld-link.
+#
+# scripts/build-windows.ps1 copies this file verbatim to
+# out/angle-pkg-windows-x64/args.gn (GN accepts comments), so it must contain
+# only arguments that ANGLE's tree declares — an unknown arg aborts `gn gen`.
+# NOTE: `angle_enable_d3d9` is no longer declared upstream; do not add it.
+
+# Targeting.
+target_os = "win"
+target_cpu = "x64"
+
+# Build configuration (same shape as gn-args-macos.gnargs).
+is_debug = false
+# Static CRT (/MT) + static libc++: the DLLs import no vcruntime/msvcp, so
+# consumers need no VC++ redistributable. verify-windows.ps1 enforces this.
+is_component_build = false
+# Default, stated explicitly: MSVC cl is unsupported upstream. clang-cl and
+# lld-link come from third_party/llvm-build (fetched by gclient sync); the
+# locally installed Visual Studio only supplies CRT headers/libs and the SDK.
+is_clang = true
+treat_warnings_as_errors = false
+
+# Backends: Direct3D 11 only.
+angle_enable_d3d11 = true
+angle_enable_gl = false
+angle_enable_gl_desktop_backend = false
+angle_enable_vulkan = false
+angle_enable_swiftshader = false
+angle_enable_null = false
+angle_enable_wgpu = false
+# DirectComposition window path is unused (the HAL renders to pbuffers/FBOs).
+angle_enable_d3d11_compositor_native_window = false
+
+# Trim.
+angle_build_tests = false
+angle_has_frame_capture = false
+
+# Symbols: line tables only (full PDBs are ~40 MB and ship separately as the
+# -symbols.zip asset).
+symbol_level = 1
+
+# If a future ANGLE pin makes `gn gen` complain about Siso/reclient, add:
+# use_siso = false
