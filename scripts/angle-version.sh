@@ -2,7 +2,7 @@
 # angle-version.sh — single source of truth for the ANGLE pin (config/angle.lock).
 #
 # The Mac (Apple slices) and the Windows workflow build on different machines;
-# the lock file is how both build the SAME ANGLE commit, so one release tag
+# the lock file is how both build the same ANGLE commit, so one release tag
 # v2.1.<ANGLE_COMMIT_POSITION> names one source revision.
 #
 # Usage:
@@ -25,17 +25,22 @@ ANGLE_SRC="${ANGLE_SRC:-$PKG_DIR/../angle}"
 
 die() { printf '\033[1;31m[angle-version error]\033[0m %s\n' "$*" >&2; exit 1; }
 
-# Bind the lock's ANGLE_* keys as shell variables in this process. No `eval`:
-# each line is matched structurally, the value is restricted to the charset
-# a sha / integer / ISO date / branch name needs, and the assignment goes
-# through `printf -v`, so a hostile edit to config/angle.lock cannot run
-# commands here or in the callers that eval `print`'s (%q-quoted) output.
+# Bind the lock's ANGLE_* keys as shell variables in this process without
+# `eval`: each line is matched structurally, the value is restricted to the
+# characters a sha, integer, ISO date or branch name needs, and the
+# assignment goes through `printf -v`. A value containing shell syntax is
+# rejected rather than executed, here and in the callers that eval the
+# %q-quoted output of `print`.
 LOCK_KEYS=()
 load_lock() {
     [[ -f "$LOCK" ]] || die "missing $LOCK (run 'make pin' on a machine with an ANGLE checkout)"
     local line key value
     LOCK_KEYS=()
     while IFS= read -r line || [[ -n "$line" ]]; do
+        # Drop a trailing CR: a checkout made with core.autocrlf=true (the
+        # Git for Windows default) has CRLF line endings, and the CR would
+        # otherwise fail the value check below.
+        line="${line%$'\r'}"
         [[ "$line" =~ ^(ANGLE_[A-Z_]+)=(.*)$ ]] || continue
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"

@@ -1,0 +1,10 @@
+# Git for Windows defaults to core.autocrlf=true, which checks text files out
+# with CRLF. The files below are parsed by bash or gn on Windows runners and
+# must stay LF on every checkout.
+* text=auto
+*.sh text eol=lf
+*.gnargs text eol=lf
+*.c text eol=lf
+*.yml text eol=lf
+Makefile text eol=lf
+config/angle.lock text eol=lf

@@ -1,7 +1,7 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-  build-windows.ps1 — build ONE Windows ANGLE slice (Direct3D 11 backend).
+  build-windows.ps1 — build one Windows ANGLE slice (Direct3D 11 backend).
 
 .DESCRIPTION
   Windows analogue of build-slice.sh. Reads config/gn-args-<slice>.gnargs,

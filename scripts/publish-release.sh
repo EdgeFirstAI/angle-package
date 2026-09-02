@@ -41,7 +41,7 @@ PRERELEASE=0
 # (git rev-list HEAD --count), rendered in GL_VERSION as "ANGLE 2.1.<pos>".
 # The "2.1" is a legacy OpenGL ES conformance prefix that never changes.
 # The position comes from config/angle.lock (the cross-machine pin), not from
-# whatever ../angle happens to have checked out — see scripts/angle-version.sh.
+# the current ../angle checkout — see scripts/angle-version.sh.
 eval "$(bash "$SCRIPT_DIR/angle-version.sh" print)"
 if [[ -z "$VERSION" ]]; then
     VERSION="v2.1.${ANGLE_COMMIT_POSITION}"
