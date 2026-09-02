@@ -15,7 +15,7 @@
       LICENSE                                        (ANGLE's BSD licence)
       BUILD_INFO.txt
 
-  d3dcompiler_47.dll is NOT shipped: Windows 10/11 provide it in System32 and
+  d3dcompiler_47.dll is not shipped: Windows 10/11 provide it in System32 and
   ANGLE resolves it by name. -IncludeD3DCompiler copies the SDK redistributable
   ANGLE's build drops into out/ for consumers that need one anyway.
 

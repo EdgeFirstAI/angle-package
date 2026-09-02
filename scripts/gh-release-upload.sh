@@ -2,7 +2,7 @@
 # gh-release-upload.sh — add assets to a GitHub release, creating it if absent.
 #
 # Shared by publish-release.sh (Mac: xcframeworks) and the Windows workflow
-# (windows.yml: DLL zips) so EITHER side can publish first onto the same tag:
+# (windows.yml: DLL zips) so either side can publish first onto the same tag:
 #   1. If the release exists: upload the assets with --clobber and append this
 #      side's BUILD_INFO to the notes (once, keyed on its first line).
 #   2. Otherwise: create it as a DRAFT with the notes, upload, then undraft —

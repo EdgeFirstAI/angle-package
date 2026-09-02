@@ -55,8 +55,8 @@ env:
 jobs:
   build:
     name: Build, verify, publish (windows-x64)
-    # Pinned image, not windows-latest: the toolchain recorded in BUILD_INFO.txt
-    # must not change under us. windows-2025 = VS 2022 + Windows SDK 10.0.26100.
+    # Pinned image, not windows-latest, so the toolchain recorded in
+    # BUILD_INFO.txt stays reproducible. windows-2025 = VS 2022 + Windows SDK 10.0.26100.
     runs-on: windows-2025
     # sync ~10-20 min + build ~45-90 min on 4 vCPUs; the hard job limit is 360.
     timeout-minutes: 330

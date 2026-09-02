@@ -11,7 +11,7 @@
     angle-windows-x64-<tag>-symbols.zip   pdb/
     angle-windows-x64-<tag>-symbols.zip.sha256
 
-  Zips are FLAT (no top-level directory): consumers extract straight into
+  Zips are flat (no top-level directory): consumers extract straight into
   their target directory. .NET's ZipFile is used rather than Compress-Archive
   because the latter historically wrote '\' path separators, which unzip on
   macOS/Linux does not treat as directories.
