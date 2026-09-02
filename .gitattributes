@@ -1,0 +1,13 @@
+# Line endings. The shell scripts, the ANGLE lock and the GN args are read
+# by bash / gn on Windows runners, where Git for Windows defaults to
+# core.autocrlf=true and would otherwise check them out CRLF (the first
+# windows.yml run refused config/angle.lock because every value carried a
+# trailing carriage return). Keep them LF everywhere; PowerShell 7 reads
+# LF scripts fine, so nothing needs CRLF.
+* text=auto
+*.sh text eol=lf
+*.gnargs text eol=lf
+*.c text eol=lf
+*.yml text eol=lf
+Makefile text eol=lf
+config/angle.lock text eol=lf

@@ -36,6 +36,10 @@ load_lock() {
     local line key value
     LOCK_KEYS=()
     while IFS= read -r line || [[ -n "$line" ]]; do
+        # A checkout with core.autocrlf=true (Git for Windows' default, so
+        # the GitHub Windows runners) hands us CRLF lines; .gitattributes
+        # pins the lock to LF, this is the belt to those braces.
+        line="${line%$'\r'}"
         [[ "$line" =~ ^(ANGLE_[A-Z_]+)=(.*)$ ]] || continue
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"
